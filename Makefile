@@ -5,7 +5,8 @@
 
 # Default values
 LOCATION ?= eastus2
-TOUCH_DIR := .touch
+CLOUD_DIR := ./cloud
+TOUCH_DIR := $(CLOUD_DIR)/$(RESOURCE_GROUP)
 
 # Validate RESOURCE_GROUP
 ifndef RESOURCE_GROUP
@@ -38,17 +39,20 @@ COSMOS_CONTAINER := BondQuotes
 # Generate reproducible password using resource group as seed
 SQL_PASSWORD := $(shell echo "$(RESOURCE_GROUP)" | openssl dgst -sha256 -binary | openssl base64 | tr -d "=+/" | cut -c1-25)
 
-# Environment file
-ENV_FILE := $(RESOURCE_GROUP).env
+# Environment file in the cloud directory
+ENV_FILE := $(TOUCH_DIR)/$(RESOURCE_GROUP).env
 
 # No retry logic - just fail fast and let user rerun if needed
 
-# Create touch directory
-$(TOUCH_DIR):
+# Create cloud directory structure
+$(CLOUD_DIR):
+	@mkdir -p $(CLOUD_DIR)
+
+$(TOUCH_DIR): | $(CLOUD_DIR)
 	@mkdir -p $(TOUCH_DIR)
 
 # Top-level targets
-.PHONY: azure delete-azure clean
+.PHONY: azure delete-azure clean clean-all list-deployments
 
 azure: $(ENV_FILE)
 
@@ -56,11 +60,20 @@ delete-azure:
 	@echo "Deleting resource group $(RESOURCE_GROUP)..."
 	az group delete --name "$(RESOURCE_GROUP)" --yes --no-wait
 	rm -rf $(TOUCH_DIR)
-	rm -f $(ENV_FILE)
 
 clean:
 	rm -rf $(TOUCH_DIR)
-	rm -f $(ENV_FILE)
+
+clean-all:
+	rm -rf $(CLOUD_DIR)
+
+list-deployments:
+	@echo "Available deployments:"
+	@if [ -d $(CLOUD_DIR) ]; then \
+		find $(CLOUD_DIR) -maxdepth 1 -type d -not -path $(CLOUD_DIR) -exec basename {} \; | sort; \
+	else \
+		echo "No deployments found."; \
+	fi
 
 # Resource Group
 $(TOUCH_DIR)/resource-group: | $(TOUCH_DIR)
@@ -235,7 +248,7 @@ $(ENV_FILE): $(TOUCH_DIR)/sql-database $(TOUCH_DIR)/sql-firewall $(TOUCH_DIR)/fu
 	@echo "# =========================================" > $(ENV_FILE)
 	@echo "# Azure Interview Environment Credentials" >> $(ENV_FILE)
 	@echo "# =========================================" >> $(ENV_FILE)
-	@echo "# Generated: $(date)" >> $(ENV_FILE)
+	@echo "# Generated: $$(date)" >> $(ENV_FILE)
 	@echo "# Resource Group: $(RESOURCE_GROUP)" >> $(ENV_FILE)
 	@echo "# Location: $(LOCATION)" >> $(ENV_FILE)
 	@echo "# =========================================" >> $(ENV_FILE)
@@ -267,4 +280,4 @@ $(ENV_FILE): $(TOUCH_DIR)/sql-database $(TOUCH_DIR)/sql-firewall $(TOUCH_DIR)/fu
 	@echo "# Azure Info" >> $(ENV_FILE)
 	@echo "AZURE_REGION=\"$(LOCATION)\"" >> $(ENV_FILE)
 	@echo "AZURE_RESOURCE_GROUP=\"$(RESOURCE_GROUP)\"" >> $(ENV_FILE)
-	@echo "Environment file $(ENV_FILE) created successfully!"
+	@echo "Environment file created at: $(ENV_FILE)"
