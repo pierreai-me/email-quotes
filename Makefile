@@ -87,7 +87,7 @@ $(TOUCH_DIR)/eventhub-namespace: $(TOUCH_DIR)/resource-group
 	az eventhubs namespace create \
 		--name "$(EVENTHUB_NAMESPACE)" \
 		--resource-group "$(RESOURCE_GROUP)" \
-		--sku Basic \
+		--sku Standard \
 		--location "$(LOCATION)"
 	@touch $@
 

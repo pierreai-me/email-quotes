@@ -1,0 +1,4 @@
+# Azure
+kafka-python
+pydantic
+pydantic-settings
