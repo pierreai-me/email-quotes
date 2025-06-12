@@ -6,7 +6,7 @@ from solution.azure.models import BondQuote, KafkaSettings
 
 def consume_quotes(env_file: str, count: int):
     """Consume bond quotes from Kafka"""
-    settings = KafkaSettings(_env_file=env_file)
+    settings = KafkaSettings(_env_file=env_file)  # type: ignore
 
     consumer = KafkaConsumer(
         settings.eventhub_name,

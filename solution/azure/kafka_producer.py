@@ -4,7 +4,6 @@ import random
 from datetime import date, timedelta
 from kafka import KafkaProducer
 from solution.azure.models import BondQuote, KafkaSettings
-import time
 
 
 def generate_random_bond_quote() -> BondQuote:
@@ -29,7 +28,7 @@ def generate_random_bond_quote() -> BondQuote:
 
 
 def produce_quotes(env_file: str, count: int):
-    settings = KafkaSettings(_env_file=env_file)
+    settings = KafkaSettings(_env_file=env_file)  # type: ignore
 
     producer = KafkaProducer(
         **settings.get_kafka_config(),
