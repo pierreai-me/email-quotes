@@ -8,34 +8,12 @@ Usage:
 
 import argparse
 import psycopg2
-
-
-from pydantic_settings import BaseSettings
-
-
-class DatabaseSettings(BaseSettings):
-    """Database connection settings from environment file."""
-
-    postgres_host: str
-    postgres_database: str
-    postgres_username: str
-    postgres_password: str
-    postgres_port: str = "5432"
-    postgres_sslmode: str = "require"
-
-    model_config = {
-        "env_file": ".env",
-        "case_sensitive": False,
-        "extra": "ignore",
-    }
+from solution.azure.models import DatabaseSettings
 
 
 def create_database_schema(settings: DatabaseSettings) -> None:
-    # Build connection string
-    conn_string = f"host={settings.postgres_host} dbname={settings.postgres_database} user={settings.postgres_username} password={settings.postgres_password} port={settings.postgres_port} sslmode={settings.postgres_sslmode}"
-
     print(f"Connecting to PostgreSQL database...")
-    conn = psycopg2.connect(conn_string)
+    conn = psycopg2.connect(settings.get_connection_string())
     cursor = conn.cursor()
 
     try:
@@ -110,7 +88,7 @@ def main():
         help="Path to .env file containing database connection settings",
     )
     args = parser.parse_args()
-    settings = DatabaseSettings(_env_file=args.env_file) # type: ignore
+    settings = DatabaseSettings(_env_file=args.env_file)  # type: ignore
     create_database_schema(settings)
 
 

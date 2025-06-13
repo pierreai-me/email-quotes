@@ -115,7 +115,7 @@ $(TOUCH_DIR)/postgres-server: $(TOUCH_DIR)/resource-group
 		--sku-name Standard_B1ms \
 		--tier Burstable \
 		--storage-size 32 \
-		--version 16 \
+		--version 17 \
 		--public-access All
 	@touch $@
 

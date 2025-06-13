@@ -35,3 +35,28 @@ class KafkaSettings(BaseSettings):
             "sasl_plain_password": self.eventhub_connection_string,
             "client_id": "bond-quote-client",
         }
+
+class DatabaseSettings(BaseSettings):
+    """Database connection settings from environment file."""
+    postgres_host: str
+    postgres_database: str
+    postgres_username: str
+    postgres_password: str
+    postgres_port: str = "5432"
+    postgres_sslmode: str = "require"
+
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": False,
+        "extra": "ignore",
+    }
+
+    def get_connection_string(self) -> str:
+        return (
+            f"host={self.postgres_host} "
+            f"dbname={self.postgres_database} "
+            f"user={self.postgres_username} "
+            f"password={self.postgres_password} "
+            f"port={self.postgres_port} "
+            f"sslmode={self.postgres_sslmode}"
+        )

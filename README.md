@@ -20,9 +20,11 @@ ENV_FILE="./cloud/${RESOURCE_GROUP}/${RESOURCE_GROUP}.env"
 time make -j azure RESOURCE_GROUP=${RESOURCE_GROUP}
 # make delete-azure RESOURCE_GROUP=${RESOURCE_GROUP}
 
-python -m solution.azure.kafka_producer --env-file "$ENV_FILE" --count 15
-python -m solution.azure.kafka_consumer --env-file "$ENV_FILE" --count 10
 python -m solution.azure.create_sql --env-file "$ENV_FILE"
+python -m solution.azure.kafka_producer --env-file "$ENV_FILE" --count 15
+python -m solution.azure.kafka_consumer --env-file "$ENV_FILE" --count 10 --insert-sql
+python -m solution.azure.show_sql --env-file "$ENV_FILE"
+
 ```
 
 ## Goal

@@ -1,11 +1,70 @@
 import argparse
+from datetime import datetime
+import psycopg2
 from kafka import KafkaConsumer
-from solution.azure.models import BondQuote, KafkaSettings
+from solution.azure.models import BondQuote, DatabaseSettings, KafkaSettings
 
 
-def consume_quotes(env_file: str, count: int):
+class SqlInserter:
+
+    def __init__(self, settings: DatabaseSettings):
+        self.settings = settings
+        conn_string = settings.get_connection_string()
+        self.connection = psycopg2.connect(conn_string)
+
+    def insert_quote(self, quote: BondQuote) -> None:
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(
+                """
+                INSERT INTO quotes (sender, quote_timestamp, ticker, price, coupon, maturity)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    quote.sender,
+                    datetime.now(),
+                    quote.ticker,
+                    quote.price,
+                    quote.coupon,
+                    quote.maturity,
+                ),
+            )
+
+            quote_id = cursor.fetchone()[0]  # type: ignore
+
+            for recipient in quote.recipient:
+                cursor.execute(
+                    """
+                    INSERT INTO quote_recipients (quote_id, recipient)
+                    VALUES (%s, %s)
+                    """,
+                    (quote_id, recipient),
+                )
+
+            self.connection.commit()
+
+        except Exception as e:
+            print(f"Error inserting quote into database: {type(e)} {e}")
+            self.connection.rollback()
+            raise
+
+        finally:
+            cursor.close()
+
+    def close(self):
+        self.connection.close()
+
+
+def consume_quotes(env_file: str, count: int, insert_sql: bool = False):
     """Consume bond quotes from Kafka"""
     settings = KafkaSettings(_env_file=env_file)  # type: ignore
+
+    # Initialize database inserter if needed
+    sql_inserter = None
+    if insert_sql:
+        db_settings = DatabaseSettings(_env_file=env_file)  # type: ignore
+        sql_inserter = SqlInserter(db_settings)
 
     consumer = KafkaConsumer(
         settings.eventhub_name,
@@ -29,6 +88,10 @@ def consume_quotes(env_file: str, count: int):
                 quote = BondQuote.model_validate_json(message.value)
                 consumed_count += 1
                 print(f"Received quote {consumed_count}/{count}: {quote}")
+
+                if sql_inserter:
+                    sql_inserter.insert_quote(quote)
+
                 if consumed_count >= count:
                     break
 
@@ -40,6 +103,8 @@ def consume_quotes(env_file: str, count: int):
 
     finally:
         consumer.close()
+        if sql_inserter:
+            sql_inserter.close()
 
 
 if __name__ == "__main__":
@@ -48,7 +113,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--count", type=int, default=10, help="Number of quotes to consume"
     )
+    parser.add_argument(
+        "--insert-sql",
+        action="store_true",
+        default=False,
+        help="Insert quotes into PostgreSQL database (default: False)",
+    )
 
     args = parser.parse_args()
 
-    consume_quotes(args.env_file, args.count)
+    consume_quotes(args.env_file, args.count, args.insert_sql)
