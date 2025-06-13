@@ -14,10 +14,15 @@ pip install -r requirements.txt
 Test:
 
 ```bash
-RESOURCE_GROUP="emailquotes001"
+RESOURCE_GROUP="emailquotes002"
 ENV_FILE="./cloud/${RESOURCE_GROUP}/${RESOURCE_GROUP}.env"
+
+time make -j azure RESOURCE_GROUP=${RESOURCE_GROUP}
+# make delete-azure RESOURCE_GROUP=${RESOURCE_GROUP}
+
 python -m solution.azure.kafka_producer --env-file "$ENV_FILE" --count 15
 python -m solution.azure.kafka_consumer --env-file "$ENV_FILE" --count 10
+python -m solution.azure.create_sql --env-file "$ENV_FILE"
 ```
 
 ## Goal

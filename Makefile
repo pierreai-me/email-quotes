@@ -24,20 +24,20 @@ endif
 
 # Generate resource names
 EVENTHUB_NAMESPACE := $(RESOURCE_GROUP)evhub
-SQL_SERVER_NAME := $(RESOURCE_GROUP)sql
+POSTGRES_SERVER_NAME := $(RESOURCE_GROUP)pg
 COSMOS_ACCOUNT := $(RESOURCE_GROUP)cosmos
 FUNCTION_APP_NAME := $(RESOURCE_GROUP)api
 STORAGE_ACCOUNT := $(RESOURCE_GROUP)stor
 
 # Fixed names
-SQL_USERNAME := candidateuser
-SQL_DATABASE := interviewdb
+POSTGRES_USERNAME := candidateuser
+POSTGRES_DATABASE := interviewdb
 EVENTHUB_NAME := bond-quotes
 COSMOS_DATABASE := InterviewDB
 COSMOS_CONTAINER := BondQuotes
 
 # Generate reproducible password using resource group as seed
-SQL_PASSWORD := $(shell echo "$(RESOURCE_GROUP)" | openssl dgst -sha256 -binary | openssl base64 | tr -d "=+/" | cut -c1-25)
+POSTGRES_PASSWORD := $(shell echo "$(RESOURCE_GROUP)" | openssl dgst -sha256 -binary | openssl base64 | tr -d "=+/" | cut -c1-25)
 
 # Environment file in the cloud directory
 ENV_FILE := $(TOUCH_DIR)/$(RESOURCE_GROUP).env
@@ -103,41 +103,38 @@ $(TOUCH_DIR)/eventhub: $(TOUCH_DIR)/eventhub-namespace
 		--cleanup-policy Delete
 	@touch $@
 
-# SQL Server (depends on resource group)
-$(TOUCH_DIR)/sql-server: $(TOUCH_DIR)/resource-group
-	@echo "Creating SQL Server $(SQL_SERVER_NAME)..."
-	az sql server create \
-		--name "$(SQL_SERVER_NAME)" \
+# PostgreSQL Server (depends on resource group)
+$(TOUCH_DIR)/postgres-server: $(TOUCH_DIR)/resource-group
+	@echo "Creating PostgreSQL Server $(POSTGRES_SERVER_NAME)..."
+	az postgres flexible-server create \
+		--name "$(POSTGRES_SERVER_NAME)" \
 		--resource-group "$(RESOURCE_GROUP)" \
 		--location "$(LOCATION)" \
-		--admin-user "$(SQL_USERNAME)" \
-		--admin-password "$(SQL_PASSWORD)"
+		--admin-user "$(POSTGRES_USERNAME)" \
+		--admin-password "$(POSTGRES_PASSWORD)" \
+		--sku-name Standard_B1ms \
+		--tier Burstable \
+		--storage-size 32 \
+		--version 16 \
+		--public-access All
 	@touch $@
 
-# SQL Database (depends on SQL server)
-$(TOUCH_DIR)/sql-database: $(TOUCH_DIR)/sql-server
-	@echo "Creating SQL Database $(SQL_DATABASE)..."
-	az sql db create \
+# PostgreSQL Database (depends on PostgreSQL server)
+$(TOUCH_DIR)/postgres-database: $(TOUCH_DIR)/postgres-server
+	@echo "Creating PostgreSQL Database $(POSTGRES_DATABASE)..."
+	az postgres flexible-server db create \
 		--resource-group "$(RESOURCE_GROUP)" \
-		--server "$(SQL_SERVER_NAME)" \
-		--name "$(SQL_DATABASE)" \
-		--service-objective Basic \
-		--backup-storage-redundancy Local
+		--server-name "$(POSTGRES_SERVER_NAME)" \
+		--database-name "$(POSTGRES_DATABASE)"
 	@touch $@
 
-# SQL Firewall Rules (depends on SQL server)
-$(TOUCH_DIR)/sql-firewall: $(TOUCH_DIR)/sql-server
-	@echo "Configuring SQL Server firewall rules..."
-	az sql server firewall-rule create \
+# PostgreSQL Firewall Rules (depends on PostgreSQL server)
+$(TOUCH_DIR)/postgres-firewall: $(TOUCH_DIR)/postgres-server
+	@echo "Configuring PostgreSQL Server firewall rules..."
+	az postgres flexible-server firewall-rule create \
 		--resource-group "$(RESOURCE_GROUP)" \
-		--server "$(SQL_SERVER_NAME)" \
-		--name AllowAzureServices \
-		--start-ip-address 0.0.0.0 \
-		--end-ip-address 0.0.0.0
-	az sql server firewall-rule create \
-		--resource-group "$(RESOURCE_GROUP)" \
-		--server "$(SQL_SERVER_NAME)" \
-		--name AllowAllInterviewIPs \
+		--name "$(POSTGRES_SERVER_NAME)" \
+		--rule-name AllowAllInterviewIPs \
 		--start-ip-address 0.0.0.0 \
 		--end-ip-address 255.255.255.255
 	@touch $@
@@ -240,7 +237,7 @@ $(TOUCH_DIR)/function-app-config: $(TOUCH_DIR)/function-app $(TOUCH_DIR)/eventhu
 	@touch $@
 
 # Generate Environment File (depends on all infrastructure)
-$(ENV_FILE): $(TOUCH_DIR)/sql-database $(TOUCH_DIR)/sql-firewall $(TOUCH_DIR)/function-app-config
+$(ENV_FILE): $(TOUCH_DIR)/postgres-database $(TOUCH_DIR)/postgres-firewall $(TOUCH_DIR)/function-app-config
 	@echo "Generating environment file $(ENV_FILE)..."
 	$(eval EVENTHUB_CONNECTION_STRING := $(shell cat $(TOUCH_DIR)/eventhub-connection-string))
 	$(eval COSMOS_ENDPOINT := $(shell cat $(TOUCH_DIR)/cosmos-endpoint))
@@ -259,12 +256,13 @@ $(ENV_FILE): $(TOUCH_DIR)/sql-database $(TOUCH_DIR)/sql-firewall $(TOUCH_DIR)/fu
 	@echo "EVENTHUB_NAMESPACE=\"$(EVENTHUB_NAMESPACE)\"" >> $(ENV_FILE)
 	@echo "KAFKA_BROKER=\"$(EVENTHUB_NAMESPACE).servicebus.windows.net:9093\"" >> $(ENV_FILE)
 	@echo "" >> $(ENV_FILE)
-	@echo "# SQL Database" >> $(ENV_FILE)
-	@echo "SQL_CONNECTION_STRING=\"Server=tcp:$(SQL_SERVER_NAME).database.windows.net,1433;Initial Catalog=$(SQL_DATABASE);Persist Security Info=False;User ID=$(SQL_USERNAME);Password=$(SQL_PASSWORD);MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;\"" >> $(ENV_FILE)
-	@echo "SQL_SERVER=\"$(SQL_SERVER_NAME).database.windows.net\"" >> $(ENV_FILE)
-	@echo "SQL_DATABASE=\"$(SQL_DATABASE)\"" >> $(ENV_FILE)
-	@echo "SQL_USERNAME=\"$(SQL_USERNAME)\"" >> $(ENV_FILE)
-	@echo "SQL_PASSWORD=\"$(SQL_PASSWORD)\"" >> $(ENV_FILE)
+	@echo "# PostgreSQL Database" >> $(ENV_FILE)
+	@echo "POSTGRES_HOST=\"$(POSTGRES_SERVER_NAME).postgres.database.azure.com\"" >> $(ENV_FILE)
+	@echo "POSTGRES_DATABASE=\"$(POSTGRES_DATABASE)\"" >> $(ENV_FILE)
+	@echo "POSTGRES_USERNAME=\"$(POSTGRES_USERNAME)\"" >> $(ENV_FILE)
+	@echo "POSTGRES_PASSWORD=\"$(POSTGRES_PASSWORD)\"" >> $(ENV_FILE)
+	@echo "POSTGRES_PORT=\"5432\"" >> $(ENV_FILE)
+	@echo "POSTGRES_SSLMODE=\"require\"" >> $(ENV_FILE)
 	@echo "" >> $(ENV_FILE)
 	@echo "# Cosmos DB (NoSQL)" >> $(ENV_FILE)
 	@echo "COSMOS_ENDPOINT=\"$(COSMOS_ENDPOINT)\"" >> $(ENV_FILE)
