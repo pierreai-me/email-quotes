@@ -1,4 +1,3 @@
-# consumer.py
 import argparse
 from kafka import KafkaConsumer
 from solution.azure.models import BondQuote, KafkaSettings

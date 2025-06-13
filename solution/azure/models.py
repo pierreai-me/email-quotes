@@ -1,10 +1,12 @@
-# models.py
-from datetime import date
+from datetime import date, datetime
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 
 class BondQuote(BaseModel):
+    sender: str
+    recipient: list[str]
+    quote_timestamp: datetime
     ticker: str
     price: float
     coupon: float

@@ -33,10 +33,15 @@ In practice, candidates will either use the Kafka queue (1) or the REST API (2) 
 
 Also, they will use a database to implement their solution. They can either use a SQL database (3) or a No SQL database (4) depending on their preferences and the constraints of the problem, for instance the load.
 
-Bond quotes are simple strucures:
+The goal of the question is to have the candidate implement a system in which they receive quotes, process them, store them, and allow querying them based on some attributes (initially a time range and a recipient).
+
+Bond quotes provided by the Kafka queue or the REST API are simple strucures:
 
 ```py
 class BondQuote(BaseModel):
+    sender: str
+    recipient: list[str]
+    quote_timestamp: datetime.datetime
     ticker: str
     price: float  # actually decimal
     coupon: float
