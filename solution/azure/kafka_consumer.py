@@ -122,7 +122,7 @@ def consume_quotes(
         **settings.get_kafka_config(),
         auto_offset_reset="earliest",  # Start from beginning if no offset
         enable_auto_commit=True,
-        group_id="bond-quote-consumer-group",
+        group_id="bond-quote-consumer-group-2",
         value_deserializer=lambda x: x.decode("utf-8"),
         consumer_timeout_ms=10_000,
     )

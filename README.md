@@ -64,13 +64,17 @@ Explain how all 5 components can be provided by AWS, Azure, and GCP. I'll be pay
 
 ## Observations
 
-### Kafka read and write performance
+### Operations performance
 
-Write 200 quotes, one quote at a time and wait for an ack before the next quote:
-- Sent 200 quotes in 9.6 sec (20.9 msg/sec)
+| Operation | Condition | Quotes | Time (s) | Rate (msg/s) |
+| --- | --- | --- | --- | --- |
+| Kafka write | No batch | 200 | 9.6 | 21 |
+| Kafka write | Batch | 10,000 | 0.8 | 11,890 |
+| Kafka read | No insertions | 10,000 | 10.9 | 917 |
+| Kafka read | SQL + No SQL insertions | 100 | 42.3 | 4.7 |
 
-Write 10,000 quotes in a single batch:
-- Sent 10000 quotes in 0.8 sec (11890.1 msg/sec)
+### Bugs
 
-Read 10,000 quotes:
-- Received 10000 quotes in 10.9 sec (916.8 msg/sec)
+- When sending quotes to Kafka, if gzip compression is enabled, the producer completes successfully but the consumer does not see any quotes
+- When aborting the consumer, rerunning again does not pick up new messages (I have to use a different consumer group)
+- There is an intermittent failure when querying Cosmos DB using --coupon '>3.0'
