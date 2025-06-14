@@ -8,10 +8,10 @@ Usage:
 
 import argparse
 import psycopg2
-from solution.azure.models import DatabaseSettings
+from solution.azure.models import SqlSettings, PostgresSettings
 
 
-def create_database_schema(settings: DatabaseSettings) -> None:
+def create_database_schema(settings: SqlSettings) -> None:
     print(f"Connecting to PostgreSQL database...")
     conn = psycopg2.connect(settings.get_connection_string())
     cursor = conn.cursor()
@@ -88,7 +88,7 @@ def main():
         help="Path to .env file containing database connection settings",
     )
     args = parser.parse_args()
-    settings = DatabaseSettings(_env_file=args.env_file)  # type: ignore
+    settings = PostgresSettings(_env_file=args.env_file)  # type: ignore
     create_database_schema(settings)
 
 

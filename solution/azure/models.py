@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
+from typing import override
 
 
 class BondQuote(BaseModel):
@@ -36,8 +37,16 @@ class KafkaSettings(BaseSettings):
             "client_id": "bond-quote-client",
         }
 
-class DatabaseSettings(BaseSettings):
+
+class SqlSettings(BaseSettings):
+
+    def get_connection_string(self) -> str:
+        raise NotImplementedError()
+
+
+class PostgresSettings(SqlSettings):
     """Database connection settings from environment file."""
+
     postgres_host: str
     postgres_database: str
     postgres_username: str
@@ -51,6 +60,7 @@ class DatabaseSettings(BaseSettings):
         "extra": "ignore",
     }
 
+    @override
     def get_connection_string(self) -> str:
         return (
             f"host={self.postgres_host} "
@@ -60,3 +70,18 @@ class DatabaseSettings(BaseSettings):
             f"port={self.postgres_port} "
             f"sslmode={self.postgres_sslmode}"
         )
+
+
+class CosmosSettings(BaseSettings):
+    """Cosmos DB connection settings from environment file."""
+
+    cosmos_endpoint: str
+    cosmos_key: str
+    cosmos_database: str
+    cosmos_container: str
+
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": False,
+        "extra": "ignore",
+    }

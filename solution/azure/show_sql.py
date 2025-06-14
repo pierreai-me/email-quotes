@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 import psycopg2
-from solution.azure.models import DatabaseSettings
+from solution.azure.models import PostgresSettings
 
 
 def show_quotes(env_file: str):
-    settings = DatabaseSettings(_env_file=env_file)  # type: ignore
+    settings = PostgresSettings(_env_file=env_file)  # type: ignore
     conn = psycopg2.connect(settings.get_connection_string())
 
     with conn.cursor() as cur:
