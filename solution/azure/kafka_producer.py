@@ -1,7 +1,6 @@
-# producer.py
 import argparse
 import random
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from kafka import KafkaProducer
 from solution.azure.models import BondQuote, KafkaSettings
 
@@ -19,7 +18,32 @@ def generate_random_bond_quote() -> BondQuote:
         "AMD",
         "IBM",
     ]
+
+    senders = [
+        "bloomberg@bloomberg.com",
+        "quotes@reuters.com",
+        "market@wsj.com",
+        "data@yahoo.com",
+        "feeds@marketwatch.com",
+    ]
+
+    recipients = [
+        "trader1@hedge-fund.com",
+        "analyst@investment-bank.com",
+        "portfolio@pension-fund.com",
+        "desk@prop-trading.com",
+        "research@asset-mgmt.com",
+        "bonds@insurance-co.com",
+        "fixed-income@mutual-fund.com",
+        "trading@credit-union.org",
+    ]
+
+    num_recipients = random.randint(1, 4)
+
     return BondQuote(
+        sender=random.choice(senders),
+        recipient=random.sample(recipients, num_recipients),
+        quote_timestamp=datetime.now(),
         ticker=random.choice(tickers),
         price=round(random.uniform(95.00, 105.00), 2),
         coupon=round(random.uniform(2.00, 8.00), 2),
