@@ -25,6 +25,7 @@ python -m solution.azure.kafka_producer --env-file "$ENV_FILE" --count 15
 python -m solution.azure.kafka_consumer --env-file "$ENV_FILE" --count 10 --insert-sql --insert-no-sql
 python -m solution.azure.show_sql --env-file "$ENV_FILE"
 python -m solution.azure.show_no_sql --env-file "$ENV_FILE"
+python -m solution.azure.query --env-file "$ENV_FILE" --sql --ticker AAPL
 ```
 
 ## Goal
