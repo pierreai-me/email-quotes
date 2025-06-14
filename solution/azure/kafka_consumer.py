@@ -1,4 +1,5 @@
 import argparse
+import time
 import uuid
 import psycopg2
 from azure.cosmos import CosmosClient
@@ -131,6 +132,7 @@ def consume_quotes(
     )
 
     consumed_count = 0
+    start_time = time.time()
 
     try:
         for message in consumer:
@@ -160,6 +162,10 @@ def consume_quotes(
             sql_inserter.close()
         if cosmos_inserter:
             cosmos_inserter.close()
+
+    elapsed = time.time() - start_time
+    rate = consumed_count / elapsed
+    print(f"Received {consumed_count} quotes in {elapsed:.1f} sec ({rate:.1f} msg/sec)")
 
 
 if __name__ == "__main__":

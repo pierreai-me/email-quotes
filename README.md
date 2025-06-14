@@ -61,3 +61,16 @@ class BondQuote(BaseModel):
 ### Getting started
 
 Explain how all 5 components can be provided by AWS, Azure, and GCP. I'll be paying for those out of pocket so also compare prices. I'll be deleting all components after each interview (i.e. the setup will be active for only a few hours). Consider security -- how can I make sure the candidate can only access these components and no unrelated components that I own on these cloud providers.
+
+## Observations
+
+### Kafka read and write performance
+
+Write 200 quotes, one quote at a time and wait for an ack before the next quote:
+- Sent 200 quotes in 9.6 sec (20.9 msg/sec)
+
+Write 10,000 quotes in a single batch:
+- Sent 10000 quotes in 0.8 sec (11890.1 msg/sec)
+
+Read 10,000 quotes:
+- Received 10000 quotes in 10.9 sec (916.8 msg/sec)

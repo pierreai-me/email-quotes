@@ -1,5 +1,6 @@
 import argparse
 import random
+import time
 from datetime import date, datetime, timedelta
 from kafka import KafkaProducer
 from solution.azure.models import BondQuote, KafkaSettings
@@ -51,37 +52,73 @@ def generate_random_bond_quote() -> BondQuote:
     )
 
 
-def produce_quotes(env_file: str, count: int):
+def produce_quotes(env_file: str, count: int, batch: bool):
     settings = KafkaSettings(_env_file=env_file)  # type: ignore
+    config = settings.get_kafka_config()
+
+    if batch:
+        # Add configuration parameters specific to batch producer
+        config["linger_ms"] = 10  # wait up to `linger_ms` ms to fill batch
+        config["max_in_flight_requests_per_connection"] = 5
+        config["acks"] = 1
+        config["retries"] = 3
+        config["batch_size"] = 16_384
+        config["buffer_memory"] = 67_108_864
+        # config["compression_type"] = "gzip"
+        config["request_timeout_ms"] = 30_000
+        config["delivery_timeout_ms"] = 120_000
 
     producer = KafkaProducer(
-        **settings.get_kafka_config(),
+        **config,
         value_serializer=lambda x: x.encode("utf-8"),
-        retries=3,
-        acks="all",
     )
 
     print(
-        f"Producing {count} bond quotes to topic {settings.eventhub_name} broker {settings.kafka_broker} ..."
+        f"Producing {count} bond quotes to topic {settings.eventhub_name} broker {settings.kafka_broker} batch {batch} ..."
     )
+
+    stats = {
+        "start_time": time.time(),
+        "sent": 0,
+        "failed": 0,
+        "pending_futures": [],
+    }
+
+    def delivery_callback(record_metadata):
+        stats["sent_count"] += 1
+
+    def error_callback(exception):
+        stats["failed_count"] += 1
+        print(f"Failed to send message: {type(exception)} {exception}")
 
     try:
         for i in range(count):
             quote = generate_random_bond_quote()
 
             future = producer.send(
-                settings.eventhub_name, value=quote.model_dump_json()
+                topic=settings.eventhub_name, value=quote.model_dump_json()
             )
 
-            # Wait for acknowledgment
-            _ = future.get(timeout=10)
+            if not batch:
+                # Wait for acknowledgment
+                _ = future.get(timeout=10)
+                print(f"Sent quote {i+1}/{count}: {quote}")
+            else:
+                future.add_callback(delivery_callback)
+                future.add_errback(error_callback)
+                stats["pending_futures"].append(future)
 
-            print(f"Sent quote {i+1}/{count}: {quote}")
+        print("Flushing remaining messages...")
+        producer.flush()
 
     except Exception as e:
         print(f"Error producing messages: {type(e)} {e}")
     finally:
         producer.close()
+
+    elapsed = time.time() - stats["start_time"]
+    rate = count / elapsed
+    print(f"Sent {count} quotes in {elapsed:.1f} sec ({rate:.1f} msg/sec)")
 
 
 if __name__ == "__main__":
@@ -90,7 +127,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--count", type=int, default=10, help="Number of quotes to produce"
     )
+    parser.add_argument(
+        "--batch",
+        action="store_true",
+        default=False,
+        help="Send quotes in batches (default: single quote at a time)",
+    )
 
     args = parser.parse_args()
 
-    produce_quotes(args.env_file, args.count)
+    produce_quotes(args.env_file, args.count, args.batch)
