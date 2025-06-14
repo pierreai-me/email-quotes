@@ -5,6 +5,7 @@ import psycopg2
 from azure.cosmos import CosmosClient
 from datetime import datetime
 from kafka import KafkaConsumer
+from psycopg2.extras import execute_values
 from solution.azure.models import (
     BondQuote,
     CosmosSettings,
@@ -47,50 +48,57 @@ class SqlInserter:
             self.flush()
 
     def flush(self) -> None:
-        """Insert all batched quotes in a single transaction."""
         if not self.quote_batch:
             return
 
         cursor = self.connection.cursor()
         try:
-            # Insert quotes in batch and get their IDs
-            cursor.executemany(
-                """
+            quote_insert_query = """
                 INSERT INTO quotes (sender, quote_timestamp, ticker, price, coupon, maturity)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                """,
+                VALUES %s
+                RETURNING id
+            """
+
+            cursor.execute("BEGIN")
+
+            execute_values(
+                cursor,
+                quote_insert_query,
                 self.quote_batch,
+                template=None,
+                page_size=len(self.quote_batch),
             )
 
-            # Get the IDs of the inserted quotes
-            cursor.execute(
-                "SELECT id FROM quotes ORDER BY id DESC LIMIT %s",
-                (len(self.quote_batch),),
-            )
             quote_ids = [row[0] for row in cursor.fetchall()]
-            quote_ids.reverse()  # Reverse to match insertion order
 
-            # Insert recipients in batch
-            recipient_inserts = []
-            for batch_position, recipient in self.recipient_batch:
-                quote_id = quote_ids[batch_position]
-                recipient_inserts.append((quote_id, recipient))
+            # Prepare recipient data with actual quote IDs
+            if self.recipient_batch and quote_ids:
+                recipient_inserts = []
+                for batch_position, recipient in self.recipient_batch:
+                    if batch_position < len(quote_ids):
+                        quote_id = quote_ids[batch_position]
+                        recipient_inserts.append((quote_id, recipient))
 
-            if recipient_inserts:
-                cursor.executemany(
+                if recipient_inserts:
+                    # Use execute_values for bulk recipient insertion
+                    recipient_insert_query = """
+                        INSERT INTO quote_recipients (quote_id, recipient)
+                        VALUES %s
                     """
-                    INSERT INTO quote_recipients (quote_id, recipient)
-                    VALUES (%s, %s)
-                    """,
-                    recipient_inserts,
-                )
+                    execute_values(
+                        cursor,
+                        recipient_insert_query,
+                        recipient_inserts,
+                        template=None,
+                        page_size=len(recipient_inserts),
+                    )
 
-            self.connection.commit()
+            cursor.execute("COMMIT")
             print(f"Inserted {len(self.quote_batch)} quotes to SQL DB")
 
         except Exception as e:
             print(f"Error inserting batch into database: {type(e)} {e}")
-            self.connection.rollback()
+            cursor.execute("ROLLBACK")
             raise
 
         finally:
