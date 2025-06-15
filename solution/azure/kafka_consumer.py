@@ -1,6 +1,7 @@
 import argparse
+import concurrent.futures
+import threading
 import time
-import uuid
 import psycopg2
 from azure.cosmos import CosmosClient
 from datetime import datetime
@@ -119,11 +120,21 @@ class CosmosInserter:
         self.database = self.client.get_database_client(settings.cosmos_database)
         self.container = self.database.get_container_client(settings.cosmos_container)
         self.document_batch = []
+        self._counter = 0
+        self._counter_lock = threading.Lock()
+
+    def _generate_unique_id(self) -> str:
+        """Generate a unique ID for the document."""
+        with self._counter_lock:
+            self._counter += 1
+            return (
+                f"quote_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{self._counter:06d}"
+            )
 
     def add_quote(self, quote: BondQuote) -> None:
         """Add a quote to the batch for later insertion."""
         document = {
-            "id": f"quote_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}",
+            "id": self._generate_unique_id(),
             "sender": quote.sender,
             "recipients": quote.recipient,
             "quote_timestamp": quote.quote_timestamp.isoformat(),
@@ -139,18 +150,52 @@ class CosmosInserter:
         if len(self.document_batch) >= self.batch_size:
             self.flush()
 
+    def _insert_document(self, document: dict) -> tuple:
+        """Insert a single document and return result."""
+        try:
+            self.container.create_item(document)
+            return True, document["id"], None
+        except Exception as e:
+            return False, document["id"], str(e)
+
     def flush(self) -> None:
-        """Insert all batched documents."""
+        """Insert all batched documents using parallel execution."""
         if not self.document_batch:
             return
 
-        try:
-            # Cosmos DB doesn't have native batch insert, but we can parallelize
-            # For now, we'll use sequential inserts but within a smaller batch
-            for document in self.document_batch:
-                self.container.create_item(document)
+        batch_size = len(self.document_batch)
 
-            print(f"Inserted {len(self.document_batch)} quotes to Cosmos DB")
+        try:
+
+            successful_inserts = 0
+            failed_inserts = 0
+
+            # Use ThreadPoolExecutor for parallel inserts
+            # Cosmos DB can handle concurrent requests well
+            max_workers = min(batch_size, 20)  # Cap concurrent requests
+
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=max_workers
+            ) as executor:
+                # Submit all insert tasks
+                future_to_doc = {
+                    executor.submit(self._insert_document, doc): doc
+                    for doc in self.document_batch
+                }
+
+                # Collect results
+                for future in concurrent.futures.as_completed(future_to_doc):
+                    success, doc_id, error = future.result()
+                    if success:
+                        successful_inserts += 1
+                    else:
+                        failed_inserts += 1
+                        print(f"Failed to insert document {doc_id}: {error}")
+
+            print(
+                f"Inserted {successful_inserts} quotes to Cosmos DB"
+                + (f" ({failed_inserts} failed)" if failed_inserts > 0 else "")
+            )
 
         except Exception as e:
             print(f"Error inserting batch into Cosmos DB: {type(e)} {e}")

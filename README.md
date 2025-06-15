@@ -74,7 +74,7 @@ Explain how all 5 components can be provided by AWS, Azure, and GCP. I'll be pay
 | Kafka R, SQL W | Batch 1 | 200 | 28.6 | 7 |
 | Kafka R, SQL W | Batch 10,000 | 10,000 | 11.5 | 867 |
 | Kafka R, NoSQL W | Batch 1 | 1,000 | 39.3 | 25.5 |
-| Kafka R, NoSQL W | Batch 1,000 | 1,000 | 38.4 | 26.0 |
+| Kafka R, NoSQL W | Batch 10,000 | 10,000 | 26.9 | 372 |
 
 ### Bugs
 
