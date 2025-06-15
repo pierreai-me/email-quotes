@@ -7,3 +7,6 @@ pydantic-settings
 python-dotenv>=1.0.0
 psycopg2-binary
 uvicorn[standard]>=0.24.0
+
+# Testing
+pytest

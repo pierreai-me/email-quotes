@@ -14,8 +14,8 @@ pip install -r requirements.txt
 Test:
 
 ```bash
-RESOURCE_GROUP="emailquotes002"
-ENV_FILE="./cloud/${RESOURCE_GROUP}/${RESOURCE_GROUP}.env"
+export RESOURCE_GROUP="emailquotes002"
+export ENV_FILE="./cloud/${RESOURCE_GROUP}/${RESOURCE_GROUP}.env"
 
 time make -j azure RESOURCE_GROUP=${RESOURCE_GROUP}
 # make delete-azure RESOURCE_GROUP=${RESOURCE_GROUP}
@@ -26,6 +26,9 @@ python -m solution.azure.kafka_consumer --env-file "$ENV_FILE" --count 10 --inse
 python -m solution.azure.show_sql --env-file "$ENV_FILE"
 python -m solution.azure.show_no_sql --env-file "$ENV_FILE"
 python -m solution.azure.query --env-file "$ENV_FILE" --sql --ticker AAPL
+
+# Run system tests
+python -m pytest -s tests/system/test_happy.py
 
 # Run & query local server
 python -m solution.azure.quote_server "$ENV_FILE"

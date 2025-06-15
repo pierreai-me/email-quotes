@@ -5,7 +5,7 @@ import time
 import psycopg2
 from azure.cosmos import CosmosClient
 from datetime import datetime
-from kafka import KafkaConsumer
+from kafka import KafkaConsumer, TopicPartition
 from psycopg2.extras import execute_values
 from solution.azure.models import (
     BondQuote,
@@ -215,6 +215,7 @@ def consume_quotes(
     insert_cosmos: bool,
     batch_size: int,
     commit_interval: int,
+    start_timestamp: float | None = None,
 ):
     settings = KafkaSettings(_env_file=env_file)  # type: ignore
 
@@ -244,7 +245,6 @@ def consume_quotes(
     )
 
     consumer = KafkaConsumer(
-        settings.eventhub_name,
         **kafka_config,
         auto_offset_reset="earliest",
         enable_auto_commit=True,
@@ -253,6 +253,32 @@ def consume_quotes(
         value_deserializer=lambda x: x.decode("utf-8"),
         consumer_timeout_ms=30_000,
     )
+
+    # Seek to messages after start_timestamp if provided
+    if start_timestamp:
+        print(f"Seeking to messages after timestamp {start_timestamp}")
+
+        # Get all partitions for the topic and assign them
+        topic_partitions = consumer.partitions_for_topic(settings.eventhub_name)
+        if topic_partitions:
+            partitions = [TopicPartition(settings.eventhub_name, p) for p in topic_partitions]
+            consumer.assign(partitions)
+
+            # Convert timestamp to milliseconds and create timestamp dict
+            target_timestamp_ms = int(start_timestamp * 1000)
+            timestamp_dict = {tp: target_timestamp_ms for tp in partitions}
+
+            # Get offsets for the timestamp
+            offsets = consumer.offsets_for_times(timestamp_dict)
+
+            # Seek to those offsets
+            for tp, offset_metadata in offsets.items():
+                if offset_metadata:
+                    consumer.seek(tp, offset_metadata.offset)
+                    print(f"Seeked partition {tp.partition} to offset {offset_metadata.offset}")
+    else:
+        # Subscribe to topic normally if no timestamp filtering
+        consumer.subscribe([settings.eventhub_name])
 
     print(
         f"Consuming {count} bond quotes from topic {settings.eventhub_name} "
@@ -268,6 +294,11 @@ def consume_quotes(
         for message in consumer:
             try:
                 quote = BondQuote.model_validate_json(message.value)
+
+                # Skip messages older than start_timestamp if provided
+                if start_timestamp and quote.quote_timestamp.timestamp() < start_timestamp:
+                    continue
+
                 ret.append(quote)
                 consumed_count += 1
                 print(f"Received quote {consumed_count}/{count}: {quote}")
@@ -307,7 +338,7 @@ def consume_quotes(
         consumer.close()
 
     elapsed = time.time() - start_time
-    rate = consumed_count / elapsed
+    rate = consumed_count / elapsed if elapsed > 0 else 0
     print(f"Received {consumed_count} quotes in {elapsed:.1f} sec ({rate:.1f} msg/sec)")
 
     return ret
@@ -345,6 +376,11 @@ if __name__ == "__main__":
         default=10,
         help="Seconds between forced batch flushes (default: 10)",
     )
+    parser.add_argument(
+        "--start-timestamp",
+        type=float,
+        help="Unix timestamp - only consume messages after this time",
+    )
 
     args = parser.parse_args()
 
@@ -355,4 +391,5 @@ if __name__ == "__main__":
         args.insert_no_sql,
         args.batch_size,
         args.commit_interval,
+        args.start_timestamp,
     )

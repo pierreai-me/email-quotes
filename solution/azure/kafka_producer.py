@@ -85,10 +85,10 @@ def produce_quotes(env_file: str, count: int, batch: bool):
     }
 
     def delivery_callback(record_metadata):
-        stats["sent_count"] += 1
+        stats["sent"] += 1
 
     def error_callback(exception):
-        stats["failed_count"] += 1
+        stats["failed"] += 1
         print(f"Failed to send message: {type(exception)} {exception}")
 
     ret = []
