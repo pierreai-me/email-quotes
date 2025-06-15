@@ -230,14 +230,48 @@ $(TOUCH_DIR)/function-app-config: $(TOUCH_DIR)/function-app $(TOUCH_DIR)/eventhu
 		--settings \
 			"EVENTHUB_CONNECTION_STRING=$(EVENTHUB_CONNECTION_STRING)" \
 			"EVENTHUB_NAME=$(EVENTHUB_NAME)" \
+			"KAFKA_BROKER=$(EVENTHUB_NAMESPACE).servicebus.windows.net:9093" \
 			"COSMOS_ENDPOINT=$(COSMOS_ENDPOINT)" \
 			"COSMOS_KEY=$(COSMOS_KEY)" \
 			"COSMOS_DATABASE=$(COSMOS_DATABASE)" \
 			"COSMOS_CONTAINER=$(COSMOS_CONTAINER)"
 	@touch $@
 
+# Deploy Function App Code (depends on function app config)
+$(TOUCH_DIR)/function-app-deploy: $(TOUCH_DIR)/function-app-config
+	@echo "Deploying Function App code..."
+	# Create deployment package
+	@echo "Creating deployment package..."
+	@mkdir -p $(TOUCH_DIR)/deployment
+	@cp -r solution/ $(TOUCH_DIR)/deployment/
+
+	# Create host.json with routing
+	@echo '{"version": "2.0", "logging": {"applicationInsights": {"samplingSettings": {"isEnabled": true}}}, "extensionBundle": {"id": "Microsoft.Azure.Functions.ExtensionBundle", "version": "[4.*, 5.0.0)"}, "extensions": {"http": {"routePrefix": ""}}}' > $(TOUCH_DIR)/deployment/host.json
+
+	# Create function_app.py with Azure Functions v2 syntax
+	@echo 'import azure.functions as func' > $(TOUCH_DIR)/deployment/function_app.py
+	@echo 'from solution.azure.quote_server import app as fastapi_app' >> $(TOUCH_DIR)/deployment/function_app.py
+	@echo '' >> $(TOUCH_DIR)/deployment/function_app.py
+	@echo 'app = func.AsgiFunctionApp(' >> $(TOUCH_DIR)/deployment/function_app.py
+	@echo '    app=fastapi_app,' >> $(TOUCH_DIR)/deployment/function_app.py
+	@echo '    http_auth_level=func.AuthLevel.ANONYMOUS' >> $(TOUCH_DIR)/deployment/function_app.py
+	@echo ')' >> $(TOUCH_DIR)/deployment/function_app.py
+
+	# Create complete requirements.txt
+	@echo 'azure-functions' > $(TOUCH_DIR)/deployment/requirements.txt
+	@cat requirements.txt >> $(TOUCH_DIR)/deployment/requirements.txt
+
+	# Try direct deployment using Azure Functions Core Tools instead of zip
+	@echo "Installing Azure Functions Core Tools if not present..."
+	@which func || npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+	@echo "Deploying using Azure Functions Core Tools..."
+	cd $(TOUCH_DIR)/deployment && func azure functionapp publish $(FUNCTION_APP_NAME) --python
+
+	@touch $@
+
 # Generate Environment File (depends on all infrastructure)
-$(ENV_FILE): $(TOUCH_DIR)/postgres-database $(TOUCH_DIR)/postgres-firewall $(TOUCH_DIR)/function-app-config
+$(ENV_FILE): $(TOUCH_DIR)/postgres-database $(TOUCH_DIR)/postgres-firewall $(TOUCH_DIR)/function-app-deploy
 	@echo "Generating environment file $(ENV_FILE)..."
 	$(eval EVENTHUB_CONNECTION_STRING := $(shell cat $(TOUCH_DIR)/eventhub-connection-string))
 	$(eval COSMOS_ENDPOINT := $(shell cat $(TOUCH_DIR)/cosmos-endpoint))

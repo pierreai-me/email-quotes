@@ -1,6 +1,9 @@
 # Azure
 azure-cosmos
+fastapi>=0.104.0
 kafka-python
 pydantic
 pydantic-settings
+python-dotenv>=1.0.0
 psycopg2-binary
+uvicorn[standard]>=0.24.0

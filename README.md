@@ -26,6 +26,13 @@ python -m solution.azure.kafka_consumer --env-file "$ENV_FILE" --count 10 --inse
 python -m solution.azure.show_sql --env-file "$ENV_FILE"
 python -m solution.azure.show_no_sql --env-file "$ENV_FILE"
 python -m solution.azure.query --env-file "$ENV_FILE" --sql --ticker AAPL
+
+# Run & query local server
+python -m solution.azure.quote_server "$ENV_FILE"
+curl http://localhost:8000/quotes?batch_size=10
+
+# Query remote server
+curl https://${RESOURCE_GROUP}api.azurewebsites.net/quote
 ```
 
 ## Goal
