@@ -14,7 +14,7 @@ pip install -r requirements.txt
 Test:
 
 ```bash
-export RESOURCE_GROUP="emailquotes002"
+export RESOURCE_GROUP="emailquotes001"
 export ENV_FILE="./cloud/${RESOURCE_GROUP}/${RESOURCE_GROUP}.env"
 
 time make -j azure RESOURCE_GROUP=${RESOURCE_GROUP}
@@ -28,7 +28,7 @@ python -m solution.azure.show_no_sql --env-file "$ENV_FILE"
 python -m solution.azure.query --env-file "$ENV_FILE" --sql --ticker AAPL
 
 # Run system tests
-python -m pytest -s tests/system/test_happy.py
+python -m pytest -s tests/system/test_azure.py
 
 # Run & query local server
 python -m solution.azure.quote_server "$ENV_FILE"
@@ -69,12 +69,6 @@ class BondQuote(BaseModel):
     coupon: float
     maturity: datetime.date
 ```
-
-## Prompts
-
-### Getting started
-
-Explain how all 5 components can be provided by AWS, Azure, and GCP. I'll be paying for those out of pocket so also compare prices. I'll be deleting all components after each interview (i.e. the setup will be active for only a few hours). Consider security -- how can I make sure the candidate can only access these components and no unrelated components that I own on these cloud providers.
 
 ## Observations
 
