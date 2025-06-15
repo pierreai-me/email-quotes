@@ -262,11 +262,13 @@ def consume_quotes(
     consumed_count = 0
     start_time = time.time()
     last_commit_time = start_time
+    ret = []
 
     try:
         for message in consumer:
             try:
                 quote = BondQuote.model_validate_json(message.value)
+                ret.append(quote)
                 consumed_count += 1
                 print(f"Received quote {consumed_count}/{count}: {quote}")
 
@@ -307,6 +309,8 @@ def consume_quotes(
     elapsed = time.time() - start_time
     rate = consumed_count / elapsed
     print(f"Received {consumed_count} quotes in {elapsed:.1f} sec ({rate:.1f} msg/sec)")
+
+    return ret
 
 
 if __name__ == "__main__":
