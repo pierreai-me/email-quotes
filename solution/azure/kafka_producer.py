@@ -91,9 +91,12 @@ def produce_quotes(env_file: str, count: int, batch: bool):
         stats["failed_count"] += 1
         print(f"Failed to send message: {type(exception)} {exception}")
 
+    ret = []
+
     try:
         for i in range(count):
             quote = generate_random_bond_quote()
+            ret.append(quote)
 
             future = producer.send(
                 topic=settings.eventhub_name, value=quote.model_dump_json()
@@ -119,6 +122,8 @@ def produce_quotes(env_file: str, count: int, batch: bool):
     elapsed = time.time() - stats["start_time"]
     rate = count / elapsed
     print(f"Sent {count} quotes in {elapsed:.1f} sec ({rate:.1f} msg/sec)")
+
+    return ret
 
 
 if __name__ == "__main__":
