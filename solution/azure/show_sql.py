@@ -4,7 +4,8 @@ import psycopg2
 from solution.azure.models import PostgresSettings
 
 
-def show_quotes(env_file: str):
+def get_quotes(env_file: str):
+    """Generator that yields quote data from PostgreSQL database."""
     settings = PostgresSettings(_env_file=env_file)  # type: ignore
     conn = psycopg2.connect(settings.get_connection_string())
 
@@ -21,12 +22,21 @@ def show_quotes(env_file: str):
         )
 
         for row in cur.fetchall():
-            recipients = row[7] if row[7] != [None] else []
-            print(
-                f"ID:{row[0]} | {row[1]} -> {recipients} | {row[2]} | {row[3]} ${row[4]} {row[5]}% {row[6]}"
-            )
+            yield row
 
-    conn.close()
+
+def print_quotes(quotes):
+    """Print quotes from an iterable of quote data."""
+    for row in quotes:
+        recipients = row[7] if row[7] != [None] else []
+        print(
+            f"ID:{row[0]} | {row[1]} -> {recipients} | {row[2]} | {row[3]} ${row[4]} {row[5]}% {row[6]}"
+        )
+
+
+def show_quotes(env_file: str):
+    """Get quotes from database and print them."""
+    print_quotes(get_quotes(env_file))
 
 
 if __name__ == "__main__":
