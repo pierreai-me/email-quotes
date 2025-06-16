@@ -2,6 +2,8 @@
 """
 Database schema creation script for bond quotes system using PostgreSQL.
 
+Includes offset tracking for progressive consumption in quote_server.py.
+
 Usage:
     python create_database.py --env-file ./cloud/emailquotes001/emailquotes001.env
 """
@@ -44,9 +46,27 @@ def create_database_schema(settings: SqlSettings) -> None:
             """
         )
 
+        print("Creating kafka_offsets table...")
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS kafka_offsets (
+                id SERIAL PRIMARY KEY,
+                consumer_id VARCHAR(255) NOT NULL,
+                topic VARCHAR(255) NOT NULL,
+                partition_id INTEGER NOT NULL,
+                offset_value BIGINT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(consumer_id, topic, partition_id)
+            )
+            """
+        )
+
         print("Creating indices...")
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_quotes_timestamp ON quotes (quote_timestamp)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_kafka_offsets_lookup ON kafka_offsets (consumer_id, topic, partition_id)"
         )
 
         print("Adding foreign key constraint...")
